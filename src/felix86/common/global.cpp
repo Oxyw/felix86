@@ -17,6 +17,7 @@
 #include "felix86/common/symlink.hpp"
 #include "felix86/hle/filesystem.hpp"
 #include "felix86/hle/mmap.hpp"
+#include "felix86/v2/handlers.hpp"
 
 using namespace biscuit;
 
@@ -254,7 +255,7 @@ void initialize_globals() {
     const char* extensions_env = getenv("FELIX86_EXTENSIONS");
     if (extensions_env) {
         if (g_extensions_manually_specified) {
-            WARN("FELIX86_EXTENSIONS ignored, because extensions specified either with -X or FELIX86_ALL_EXTENSIONS");
+            WARN("FELIX86_EXTENSIONS ignored, because extensions specified with FELIX86_ALL_EXTENSIONS");
         } else {
             if (!parse_extensions(extensions_env)) {
                 WARN("Failed to parse environment variable FELIX86_EXTENSIONS");
@@ -349,6 +350,8 @@ void initialize_globals() {
         ERROR("This board has xtheadvector, but felix86 only works with RVV 1.0 currently");
     }
 #endif
+
+    Handlers::initialize();
 
     if (!g_execve_process) {
         LOG("%s", get_version_full());

@@ -1207,6 +1207,26 @@ Result felix86_syscall_common(felix86_frame* frame, int rv_syscall, u64 arg1, u6
         result = SYSCALL(sync_file_range, arg1, arg2, arg3, arg4, arg5, arg6);
         break;
     }
+    case felix86_riscv64_mlock: {
+        result = SYSCALL(mlock, arg1, arg2);
+        break;
+    }
+    case felix86_riscv64_munlock: {
+        result = SYSCALL(munlock, arg1, arg2);
+        break;
+    }
+    case felix86_riscv64_mlock2: {
+        result = SYSCALL(mlock2, arg1, arg2, arg3);
+        break;
+    }
+    case felix86_riscv64_mlockall: {
+        result = SYSCALL(mlockall, arg1);
+        break;
+    }
+    case felix86_riscv64_munlockall: {
+        result = SYSCALL(munlockall);
+        break;
+    }
     case felix86_riscv64_mkdirat: {
         SignalGuard guard;
         result = Filesystem::MkdirAt(arg1, (char*)arg2, arg3);
@@ -1791,6 +1811,14 @@ void felix86_syscall32(felix86_frame* frame, u32 rip_next) {
             } else {
                 result = -EFAULT;
             }
+            break;
+        }
+        case felix86_x86_32_mlockall: {
+            result = SYSCALL(mlock2, mmap_min_addr(), 0x1'0000'0000 - mmap_min_addr(), arg1);
+            break;
+        }
+        case felix86_x86_32_munlockall: {
+            result = SYSCALL(munlock, mmap_min_addr(), 0x1'0000'0000 - mmap_min_addr());
             break;
         }
         case felix86_x86_32_clock_settime32: {
@@ -2463,6 +2491,13 @@ void felix86_syscall32(felix86_frame* frame, u32 rip_next) {
             } else {
                 result = Filesystem::UtimensAt(dirfd, pathname, nullptr, flags);
             }
+            break;
+        }
+        case felix86_x86_32_ia32_truncate64: {
+            u64 offset_low = arg2;
+            u64 offset_high = arg3;
+            u64 offset = offset_low | offset_high << 32;
+            result = Filesystem::Truncate((char*)arg1, offset);
             break;
         }
         case felix86_x86_32_ia32_ftruncate64: {

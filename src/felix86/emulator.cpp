@@ -1,4 +1,4 @@
-#include <csignal>
+#include <span>
 #include <vector>
 #include <elf.h>
 #include <fcntl.h>
@@ -17,6 +17,7 @@
 #include "felix86/hle/signals.hpp"
 #include "felix86/hle/thread.hpp"
 #include "felix86/hle/thunks.hpp"
+#include "felix86/hle/vdso.hpp"
 #include "felix86/v2/recompiler.hpp"
 
 extern char** environ;
@@ -115,7 +116,7 @@ std::pair<void*, size_t> Emulator::setupMainStack(ThreadState* state) {
         return pair;
     }
 
-    std::pair<u64, u64> auxv_entries[18] = {
+    std::vector<std::pair<u64, u64>> auxv_entries = {
         {AT_PAGESZ, {4096}},
         {AT_EXECFN, {(u64)program_name}},
         {AT_CLKTCK, {100}},
@@ -133,8 +134,21 @@ std::pair<void*, size_t> Emulator::setupMainStack(ThreadState* state) {
         {AT_PHNUM, {elf->GetPhnum()}},
         {AT_RANDOM, {rand_address}},
         {AT_HWCAP, {0xBFEBFBFF}},
-        {AT_NULL, {0}} // null terminator
     };
+
+    if (!g_mode32) {
+        // Add pointer to VDSO object
+        // Since we include it as part of the felix86 binary we can just
+        // point there directly in 64-bit mode
+        std::span<u8> vdso_object = VDSO::getObject64();
+        void* mem = mmap(nullptr, vdso_object.size(), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+        ASSERT(mem != MAP_FAILED);
+        memcpy(mem, vdso_object.data(), vdso_object.size());
+        mprotect(mem, vdso_object.size(), PROT_READ | PROT_EXEC);
+        auxv_entries.push_back({AT_SYSINFO_EHDR, {(u64)mem}});
+    }
+
+    auxv_entries.push_back({AT_NULL, {0}}); // null terminator
 
     u16 auxv_count = std::size(auxv_entries);
 

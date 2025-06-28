@@ -31,7 +31,7 @@ void run_test(const std::filesystem::path& felix_path, const std::filesystem::pa
 
     argv.push_back(felix_path.c_str());
     if (extension == ".exe") {
-        argv.push_back("/usr/bin/wine");
+        argv.push_back("/usr/lib/wine/wine64");
         envp.push_back("WINEDEBUG=-all");
     }
     argv.push_back(spath.c_str());
@@ -107,4 +107,8 @@ CATCH_TEST_CASE("Clone", "[Clone]") {
 
 CATCH_TEST_CASE("SMC", "[SMC]") {
     // common_loader("SMC"); -- we don't handle smc rn
+}
+
+CATCH_TEST_CASE("Filesystem", "[Filesystem]") {
+    common_loader("Filesystem");
 }

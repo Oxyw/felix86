@@ -82,8 +82,6 @@ struct Filesystem {
 
     static int ReadlinkAt(int fd, const char* filename, char* buf, int bufsiz);
 
-    static int Rename(const char* oldname, const char* newname);
-
     static int SymlinkAt(const char* oldname, int newfd, const char* newname);
 
     static int RenameAt2(int oldfd, const char* oldname, int newfd, const char* newname, int flags);
@@ -128,6 +126,8 @@ struct Filesystem {
 
     static int Rmdir(const char* path);
 
+    static int Chroot(const char* path);
+
     static int Mount(const char* source, const char* target, const char* fstype, u64 flags, const void* data);
 
     static int Umount(const char* path, int flags);
@@ -138,7 +138,11 @@ struct Filesystem {
 
     static ssize_t Listxattr(const char* path, char* list, size_t size, bool llist);
 
-    static std::filesystem::path resolve(const char* path);
+    static std::filesystem::path resolve(const char* path, bool resolve_symlinks);
+
+    static std::pair<int, std::filesystem::path> resolve(int fd, const char* path, bool resolve_symlinks);
+
+    static std::pair<int, std::filesystem::path> resolveImpl(int fd, const char* path, bool resolve_symlinks);
 
     static void removeRootfsPrefix(std::string& path);
 
@@ -177,10 +181,6 @@ private:
 
     static int rmdirInternal(const char* path);
 
-    static std::pair<int, const char*> resolveInner(int fd, const char* path);
-
-    static std::pair<int, const char*> resolve(int fd, const char* path);
-
     static bool isProcSelfExe(const char* path);
 
     std::filesystem::path executable_path;
@@ -188,7 +188,7 @@ private:
     std::shared_ptr<Elf> interpreter;
 
     struct EmulatedNode {
-        std::string path;
+        std::filesystem::path path;
 
         // The statx of the actual file for comparison
         struct statx stat{};

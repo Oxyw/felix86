@@ -97,7 +97,9 @@ void fs_mount(const std::string& type, const std::string& source, const std::str
     pid_t pid = fork();
 
     if (pid == 0) {
-        setuid(geteuid());
+        if (setuid(geteuid()) != 0) {
+            DIE("Couldn't setuid, do I not have permissions?");
+        }
         execve("/usr/bin/mount", const_cast<char* const*>(argv), environ);
         DIE("execve(mount) failed");
     } else {
@@ -108,6 +110,16 @@ void fs_mount(const std::string& type, const std::string& source, const std::str
         if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
             DIE("Failed while mounting %s", target.c_str());
         }
+    }
+}
+
+void own(const std::filesystem::path& path) {
+    if (chown(path.c_str(), uid, gid) != 0) {
+        DIE("Failed to chown %s", path.c_str());
+    }
+
+    if (chmod(path.c_str(), 0777)) {
+        DIE("Failed to chmod %s", path.c_str());
     }
 }
 
@@ -217,9 +229,7 @@ int main(int argc, char* argv[]) {
             DIE("Failed to create /run/felix86");
         }
 
-        if (chown("/run/felix86", uid, gid) != 0) {
-            DIE("Failed to give perms to /run/felix86");
-        }
+        own("/run/felix86");
     }
 
     int fd = open("/run/felix86/mounter.lock", O_CREAT | O_RDWR, 0666);
@@ -262,9 +272,7 @@ int main(int argc, char* argv[]) {
             DIE("Failed to create /run/felix86/mounts");
         }
 
-        if (chown("/run/felix86/mounts", uid, gid) != 0) {
-            DIE("Failed to give perms to /run/felix86/mounts");
-        }
+        own("/run/felix86/mounts");
     }
 
     auto it = std::filesystem::directory_iterator("/run/felix86/mounts", ec);
@@ -312,9 +320,7 @@ int main(int argc, char* argv[]) {
         DIE("What?");
     }
 
-    if (chown(tmp, uid, gid) != 0) {
-        DIE("Failed to give perms to %s", tmp);
-    }
+    own(tmp);
 
     std::filesystem::path mount_base = tmp;
     std::filesystem::path mount_target = mount_base / "rootfs";
@@ -325,9 +331,7 @@ int main(int argc, char* argv[]) {
         DIE("Error while creating %s", mount_target.c_str());
     }
 
-    if (chown(mount_target.c_str(), uid, gid) != 0) {
-        DIE("Failed to give perms to the mount target");
-    }
+    own(mount_target);
 
     // Create the place where we can store auxiliary mountings for pivot_root
     ok = std::filesystem::create_directory(mount_base / "mounts", ec);
@@ -335,9 +339,7 @@ int main(int argc, char* argv[]) {
         DIE("Error while creating /mounts");
     }
 
-    if (chown((mount_base / "mounts").c_str(), uid, gid) != 0) {
-        DIE("Failed to give perms to the mounts dir");
-    }
+    own(mount_base / "mounts");
 
     bind_mount(rootfs_path.c_str(), mount_target);
 
@@ -353,6 +355,41 @@ int main(int argc, char* argv[]) {
     fs_mount("devpts", "devpts", mount_target / "dev" / "pts");
     bind_mount("/run", mount_target / "run");
     bind_mount("/tmp", mount_target / "tmp");
+
+    auto copy = [](const char* src, const std::filesystem::path& dst) {
+        if (!std::filesystem::exists(src)) {
+            return;
+        }
+
+        using co = std::filesystem::copy_options;
+
+        std::error_code ec;
+        std::filesystem::copy(src, dst, co::overwrite_existing | co::recursive, ec);
+    };
+
+    std::filesystem::create_directories(mount_target / "etc", ec);
+    std::filesystem::create_directories(mount_target / "var" / "lib", ec);
+
+    // Copy some stuff to the rootfs_path
+    copy("/var/lib/dbus", mount_target / "var" / "lib" / "dbus");
+    copy("/etc/mtab", mount_target / "etc" / "mtab");
+    copy("/etc/passwd", mount_target / "etc" / "passwd");
+    copy("/etc/passwd-", mount_target / "etc" / "passwd-");
+    copy("/etc/group", mount_target / "etc" / "group");
+    copy("/etc/group-", mount_target / "etc" / "group-");
+    copy("/etc/shadow", mount_target / "etc" / "shadow");
+    copy("/etc/shadow-", mount_target / "etc" / "shadow-");
+    copy("/etc/gshadow", mount_target / "etc" / "gshadow");
+    copy("/etc/gshadow-", mount_target / "etc" / "gshadow-");
+    copy("/etc/hosts", mount_target / "etc" / "hosts");
+    copy("/etc/hostname", mount_target / "etc" / "hostname");
+    copy("/etc/timezone", mount_target / "etc" / "timezone");
+    copy("/etc/localtime", mount_target / "etc" / "localtime");
+    copy("/etc/fstab", mount_target / "etc" / "fstab");
+    copy("/etc/subuid", mount_target / "etc" / "subuid");
+    copy("/etc/subgid", mount_target / "etc" / "subgid");
+    copy("/etc/machine-id", mount_target / "etc" / "machine-id");
+    copy("/etc/resolv.conf", mount_target / "etc" / "resolv.conf");
 
     // Only now that everything was mounted, write to the path.txt for future invocations
     {

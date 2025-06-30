@@ -1,0 +1,82 @@
+name: Build
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ccache gcc-riscv64-linux-gnu g++-riscv64-linux-gnu libglx-dev libgl-dev libvulkan-dev libx11-dev
+          # Please somebody fix riscv.cmake and make it include /usr/include thanks
+          sudo cp -r /usr/include/GL /usr/local/include/GL
+          sudo cp -r /usr/include/vulkan /usr/local/include/vulkan
+          sudo cp -r /usr/include/X11 /usr/local/include/X11
+          sudo cp -r /usr/include/KHR /usr/local/include/KHR
+          sudo cp -r /usr/include/vk_video /usr/local/include/vk_video
+      - name: Configure
+        run: |
+          cmake -B build -DBUILD_TESTS=1 -DCMAKE_TOOLCHAIN_FILE=riscv.cmake -DBUILD_THUNKING=1 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: |
+          cmake --build build -j$(nproc)
+      - name: Prepare artifact
+        run: |
+          mkdir -p ./artifact
+          mkdir -p ./artifact/lib
+          cp ./build/felix86 ./artifact/
+          cp ./build/felix86-mounter ./artifact/
+          cp ./src/felix86/hle/guest_libs/libGL.so.1 ./artifact/lib/
+          cp ./src/felix86/hle/guest_libs/libEGL.so.1 ./artifact/lib/
+          cp ./src/felix86/hle/guest_libs/libGLX.so.0 ./artifact/lib/
+          cp ./src/felix86/hle/guest_libs/libvulkan.so.1 ./artifact/lib/
+          cp ./src/felix86/hle/guest_libs/libwayland-client.so ./artifact/lib/
+          cp ./src/felix86/hle/guest_libs/libluajit-5.1.so ./artifact/lib/
+          mkdir -p ./test
+          cp ./build/felix86_test ./test/
+          cp ./build/felix86 ./test/
+          cp -r ./build/ASM ./test/
+          cp -r ./build/32Bit_ASM ./test/
+          cp -r ./build/Binaries ./test/
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux_artifact
+          path: ./artifact/
+      - name: Upload test binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: test_artifact
+          path: ./test
+          retention-days: 1
+  test:
+    needs: build
+    runs-on: bpi-f3
+    steps:
+      - name: Download main artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux_artifact
+          path: ./artifact
+      - name: Download test artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: test_artifact
+          path: ./test/
+      - name: Test
+        run: |
+          chmod +x ./test/felix86_test
+          chmod +x ./test/felix86
+          FELIX86_ALL_EXTENSIONS=g,v,b ./test/felix86_test
+          ./test/felix86 -k
+          FELIX86_ALL_EXTENSIONS=g,v ./test/felix86_test
+          ./test/felix86 -k

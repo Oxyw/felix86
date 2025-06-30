@@ -10,6 +10,8 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+include_directories(/usr/include)
+
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "Enabling link time optimization for Release build")
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -80,7 +82,7 @@ if (BUILD_THUNKING)
     endif()
 
     if(NOT HAVE_X11_H)
-        message(FATAL_ERROR "X11 headers not found, install libvulkan-dev on Debian or the package that installs it on your distro")
+        message(FATAL_ERROR "X11 headers not found, install libx11-dev on Debian or the package that installs it on your distro")
     endif()
 else()
     message("Building without thunking support")

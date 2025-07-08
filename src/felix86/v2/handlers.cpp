@@ -2139,8 +2139,8 @@ FAST_HANDLE(TEST) {
     bool needs_pf = rec.shouldEmitFlag(rip, X86_REF_PF);
     bool needs_zf = rec.shouldEmitFlag(rip, X86_REF_ZF);
     bool needs_sf = rec.shouldEmitFlag(rip, X86_REF_SF);
-    bool needs_cf = rec.shouldEmitFlag(rip, X86_REF_OF);
-    bool needs_of = rec.shouldEmitFlag(rip, X86_REF_CF);
+    bool needs_cf = rec.shouldEmitFlag(rip, X86_REF_CF);
+    bool needs_of = rec.shouldEmitFlag(rip, X86_REF_OF);
     bool needs_any_flag = needs_pf || needs_sf || needs_zf || needs_cf || needs_of;
     if (!needs_any_flag) {
         // Weirdly enough some x86 programs run test al, al and use no flags and overwrite them right after

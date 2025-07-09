@@ -6923,7 +6923,31 @@ FAST_HANDLE(CMPXCHG_lock) {
         } else {
             biscuit::Label not_equal;
             biscuit::Label start;
+            biscuit::Label end;
+            biscuit::GPR masked = rec.scratch();
             biscuit::GPR scratch = rec.scratch();
+            as.ANDI(masked, address, 0b11);
+            as.BEQZ(masked, &start);
+
+            // If the address is not aligned, we can't use LR.D
+            // Which means we also can't be technically correct atomically
+            // Use LR.D/SC.D on the aligned address anyway to at least have a little bit of guarantee
+            biscuit::Label loop_unaligned;
+            as.ANDI(masked, address, ~0b11);
+            as.Bind(&loop_unaligned);
+            as.LWU(dst, 0, address);
+            as.LR_W(Ordering::AQRL, scratch, masked);
+            // We do the comparison on the load from the unaligned address, obviously
+            as.BNE(dst, rax, &end);
+            // If any of the bytes we can see with the aligned address are changed we retry
+            // Of course this isn't actually atomic (we'd need hardware unaligned atomics support for that)
+            // but it's better than nothing
+            as.SC_D(Ordering::AQRL, scratch, scratch, masked); // Write the same thing we just loaded in scratch
+            as.BNEZ(scratch, &loop_unaligned);
+            as.SW(src, 0, address);
+
+            as.J(&end);
+
             as.Bind(&start);
             as.LR_W(Ordering::AQRL, dst, address);
             rec.zext(dst, dst, X86_SIZE_DWORD); // LR sign extends
@@ -6932,6 +6956,9 @@ FAST_HANDLE(CMPXCHG_lock) {
             as.BNEZ(scratch, &start);
             as.Bind(&not_equal);
             rec.popScratch();
+            rec.popScratch();
+
+            as.Bind(&end);
         }
         rec.setLockHandled();
         break;
@@ -6948,6 +6975,7 @@ FAST_HANDLE(CMPXCHG_lock) {
             as.ANDI(masked, address, 0b111);
             as.BNEZ(masked, &unaligned);
 
+            // TODO: reverse these so the common case is aligned and uncommon has to jump to end
             biscuit::Label not_equal;
             biscuit::Label start;
             as.Bind(&start);

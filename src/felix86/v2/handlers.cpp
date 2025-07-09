@@ -410,6 +410,7 @@ FAST_HANDLE(ADD) {
             if (Extensions::Zabha) {
                 WARN("Atomic 8-bit ADD with Zabha, untested");
                 as.AMOADD_B(Ordering::AQRL, dst, src, address);
+                rec.zext(dst, dst, X86_SIZE_BYTE);
             } else {
                 /*
                     andi    a2, a0, -4
@@ -459,6 +460,7 @@ FAST_HANDLE(ADD) {
             if (Extensions::Zabha) {
                 WARN("Atomic 16-bit ADD with Zabha, untested");
                 as.AMOADD_H(Ordering::AQRL, dst, src, address);
+                rec.zext(dst, dst, X86_SIZE_WORD);
             } else {
                 /*
                 aadd(unsigned short*, unsigned short)
@@ -887,6 +889,7 @@ FAST_HANDLE(OR) {
         case 8: {
             if (Extensions::Zabha) {
                 as.AMOOR_B(Ordering::AQRL, dst, src, address);
+                rec.zext(dst, dst, X86_SIZE_BYTE);
             } else {
                 biscuit::GPR masked_address = rec.scratch();
                 biscuit::GPR shifted_address = rec.scratch();
@@ -909,6 +912,7 @@ FAST_HANDLE(OR) {
         case 16: {
             if (Extensions::Zabha) {
                 as.AMOOR_H(Ordering::AQRL, dst, src, address);
+                rec.zext(dst, dst, X86_SIZE_WORD);
             } else {
                 biscuit::GPR masked_address = rec.scratch();
                 biscuit::GPR shifted_address = rec.scratch();
@@ -946,10 +950,6 @@ FAST_HANDLE(OR) {
 
         writeback = false;
     } else {
-        if (needs_atomic) {
-            WARN("Atomic OR with 8 or 16 bit operands encountered");
-        }
-
         dst = rec.getGPR(&operands[0]);
         as.OR(result, dst, src);
     }
@@ -1101,11 +1101,83 @@ FAST_HANDLE(AND) {
 
     bool writeback = true;
     bool needs_atomic = operands[0].type == ZYDIS_OPERAND_TYPE_MEMORY && (instruction.attributes & ZYDIS_ATTRIB_HAS_LOCK);
-    bool too_small_for_atomic = operands[0].size == 8 || operands[0].size == 16;
-    if (needs_atomic && !too_small_for_atomic) {
+    if (needs_atomic) {
         biscuit::GPR address = rec.lea(&operands[0]);
         dst = rec.scratch();
         switch (operands[0].size) {
+        case 8: {
+            if (Extensions::Zabha) {
+                as.AMOAND_B(Ordering::AQRL, dst, src, address);
+                rec.zext(dst, dst, X86_SIZE_BYTE);
+            } else {
+                biscuit::GPR masked_address = rec.scratch();
+                biscuit::GPR shifted_address = rec.scratch();
+                biscuit::GPR shifted_src = rec.scratch();
+                as.ANDI(masked_address, address, -4);
+                as.SLLI(shifted_address, address, 3);
+                // Prepare a mask of 1's in dst to not modify other bytes
+                as.LI(dst, 0xFF);
+                as.SLLW(dst, dst, shifted_address);
+                as.NOT(dst, dst);
+                as.SLLW(shifted_src, src, shifted_address);
+                as.OR(shifted_src, shifted_src, dst);
+                as.AMOAND_W(Ordering::AQRL, dst, shifted_src, masked_address);
+                as.SRLW(dst, dst, shifted_address);
+                rec.zext(dst, dst, X86_SIZE_BYTE);
+
+                rec.popScratch();
+                rec.popScratch();
+                rec.popScratch();
+            }
+            rec.setLockHandled();
+            break;
+        }
+        case 16: {
+            if (Extensions::Zabha) {
+                as.AMOAND_H(Ordering::AQRL, dst, src, address);
+                rec.zext(dst, dst, X86_SIZE_WORD);
+            } else {
+                biscuit::Label good_alignment, end;
+                biscuit::GPR masked_address = rec.scratch();
+                biscuit::GPR shifted_address = rec.scratch();
+                biscuit::GPR shifted_src = rec.scratch();
+
+                as.ANDI(masked_address, address, 0b11);
+                as.LI(dst, 0b11);
+                as.BNE(masked_address, dst, &good_alignment);
+
+                as.ADDI(masked_address, rec.threadStatePointer(), offsetof(ThreadState, unaligned_atomics_counter));
+                as.LI(dst, 1);
+                as.AMOADD_D(Ordering::AQRL, x0, dst, masked_address);
+                as.FENCETSO();
+                as.LHU(dst, 0, address);
+                as.AND(shifted_src, dst, src);
+                as.SH(shifted_src, 0, address);
+                as.FENCETSO();
+                as.J(&end);
+
+                as.Bind(&good_alignment);
+                as.ANDI(masked_address, address, -4);
+                as.SLLI(shifted_address, address, 3);
+                // Prepare a mask of 1's in dst to not modify other bytes
+                as.LI(dst, 0xFFFF);
+                as.SLLW(dst, dst, shifted_address);
+                as.NOT(dst, dst);
+                as.SLLW(shifted_src, src, shifted_address);
+                as.OR(shifted_address, shifted_src, dst);
+                as.AMOAND_W(Ordering::AQRL, dst, shifted_src, masked_address);
+                as.SRLW(dst, dst, shifted_address);
+                rec.zext(dst, dst, X86_SIZE_WORD);
+
+                rec.popScratch();
+                rec.popScratch();
+                rec.popScratch();
+
+                as.Bind(&end);
+            }
+            rec.setLockHandled();
+            break;
+        }
         case 32: {
             as.AMOAND_W(Ordering::AQRL, dst, src, address);
             rec.setLockHandled();
@@ -1125,10 +1197,6 @@ FAST_HANDLE(AND) {
         as.AND(result, dst, src);
         writeback = false;
     } else {
-        if (needs_atomic) {
-            WARN("Atomic AND with 8 or 16 bit operands encountered");
-        }
-
         dst = rec.getGPR(&operands[0]);
         as.AND(result, dst, src);
     }
@@ -2381,6 +2449,7 @@ FAST_HANDLE(XCHG_lock) {
         if (Extensions::Zabha) {
             WARN("Zabha is untested");
             as.AMOSWAP_B(Ordering::AQRL, dst, src, address);
+            rec.zext(dst, dst, X86_SIZE_BYTE);
         } else {
             Label loop;
             biscuit::GPR address_masked = rec.scratch();
@@ -2412,6 +2481,7 @@ FAST_HANDLE(XCHG_lock) {
         if (Extensions::Zabha) {
             WARN("Zabha is untested");
             as.AMOSWAP_H(Ordering::AQRL, dst, src, address);
+            rec.zext(dst, dst, X86_SIZE_WORD);
         } else {
             Label loop, end, normal;
             biscuit::GPR address_masked = rec.scratch();

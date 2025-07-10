@@ -6942,7 +6942,7 @@ FAST_HANDLE(CMPXCHG_lock) {
             // If any of the bytes we can see with the aligned address are changed we retry
             // Of course this isn't actually atomic (we'd need hardware unaligned atomics support for that)
             // but it's better than nothing
-            as.SC_D(Ordering::AQRL, scratch, scratch, masked); // Write the same thing we just loaded in scratch
+            as.SC_W(Ordering::AQRL, scratch, scratch, masked); // Write the same thing we just loaded in scratch
             as.BNEZ(scratch, &loop_unaligned);
             as.SW(src, 0, address);
 

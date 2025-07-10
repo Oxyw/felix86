@@ -6935,6 +6935,7 @@ FAST_HANDLE(CMPXCHG_lock) {
             biscuit::Label loop_unaligned;
             as.ANDI(masked, address, ~0b11);
             as.Bind(&loop_unaligned);
+            as.FENCETSO();
             as.LWU(dst, 0, address);
             as.LR_W(Ordering::AQRL, scratch, masked);
             // We do the comparison on the load from the unaligned address, obviously
@@ -6945,6 +6946,7 @@ FAST_HANDLE(CMPXCHG_lock) {
             as.SC_W(Ordering::AQRL, scratch, scratch, masked); // Write the same thing we just loaded in scratch
             as.BNEZ(scratch, &loop_unaligned);
             as.SW(src, 0, address);
+            as.FENCETSO();
 
             as.J(&end);
 

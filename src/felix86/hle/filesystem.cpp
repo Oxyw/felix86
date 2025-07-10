@@ -763,6 +763,68 @@ FdPath Filesystem::resolveImpl(int fd, const char* path, bool resolve_final) {
                 return FdPath::error(ELOOP);
             }
 
+            // Check if current component is a magic-link
+            // If it is, we don't resolve it and add it directly to the path and continue
+            // This is because the kernel does special stuff when resolving magic-links which we can't do ourselves
+            // Unfortunately there's no simple way of checking if it's a magic link that I can think of, other than using
+            // openat2 with RESOLVE_NO_MAGICLINKS and openat and seeing whether there's a mismatch in results
+            {
+                // Open a directory to the current relative path
+                // If we don't do that, then openat2 will fail if a magic-link is merely a component
+                // For example if I do /proc/self/root/etc, I don't want the openat2 to fail here because etc
+                // is not a magic-link, but it would fail because /proc/self/root is
+                // We want to just check if the current component is a magic-link
+                int dirfd = AT_FDCWD;
+                if (current_relative_path.empty()) {
+                    if (current_fd != AT_FDCWD) {
+                        dirfd = dup(current_fd);
+                    }
+                } else {
+                    dirfd = openat(current_fd, current_relative_path.c_str(), O_PATH | O_DIRECTORY);
+                }
+                ASSERT_MSG(dirfd == AT_FDCWD || dirfd >= 0, "Dirfd: %d %s", dirfd, strerror(errno));
+
+                int result1 = openat(dirfd, current_component.c_str(), O_PATH);
+
+                struct open_how how{
+                    .flags = O_PATH,
+                    .mode = 0,
+                    .resolve = RESOLVE_NO_MAGICLINKS,
+                };
+                int result2 = syscall(SYS_openat2, dirfd, current_component.c_str(), &how, sizeof(open_how));
+                int result2_error = errno;
+
+                // TODO: maybe optimize some cases using close_range
+                close(dirfd);
+                if (result1 > 0) {
+                    close(result1);
+                }
+                if (result2 > 0) {
+                    close(result2);
+                }
+
+                if (result1 > 0 && result2 > 0) {
+                    // Both succeeded... that's fine
+                } else if (result1 < 0 && result2 < 0) {
+                    // Both failed... that's fine
+                } else {
+                    // One succeeded and one failed
+                    if (result2 > 0 && result1 < 0) {
+                        // Shouldn't be possible
+                        WARN("openat2 succeeded and openat failed during magic-link detection... what?");
+                    } else {
+                        ASSERT(result2 < 0 && result1 > 0);
+
+                        // So this is a magic-link. Append it to the path without resolving it and continue to the next component
+                        ASSERT(result2_error == ELOOP); // this is how openat2 should fail when a component is a magic-link
+
+                        // Finally do what we need, don't resolve and append it to the path
+                        current_relative_path = current_relative_path / current_component;
+                        continue;
+                    }
+                }
+            }
+
             // If it's a symlink, don't add to current_relative_path. Instead, readlink it and
             // add the components to the component buffer
             char buffer[PATH_MAX];

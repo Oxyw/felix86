@@ -614,6 +614,13 @@ int main(int argc, char* argv[]) {
         g_executable_path_absolute = g_executable_path_absolute.lexically_normal();
     }
 
+#if 0
+    // Use me if you want to strace a specific program only
+    if (g_executable_path_absolute.string().find("python3") != std::string::npos) {
+        g_config.strace = 1;
+    }
+#endif
+
     if (!g_config.binfmt_misc_installed && !g_execve_process && check_if_privileged_executable(g_params.executable_path)) {
         // Privileged executable but no binfmt_misc support, warn the user
         WARN("This is a privileged executable but the emulator isn't installed in binfmt_misc, might run into problems. Run `felix86 -b` to install "

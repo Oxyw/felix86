@@ -966,10 +966,6 @@ FAST_HANDLE(SBB) {
         rec.updateAuxiliarySbb(dst, src, result, cf);
     }
 
-    if (rec.shouldEmitFlag(rip, X86_REF_OF)) {
-        rec.updateOverflowSub(dst, src, result_2, size);
-    }
-
     if (rec.shouldEmitFlag(rip, X86_REF_CF)) {
         biscuit::GPR scratch = rec.scratch();
         biscuit::GPR cf = rec.flag(X86_REF_CF);
@@ -983,6 +979,10 @@ FAST_HANDLE(SBB) {
         }
         as.OR(cf, cf, scratch);
         rec.popScratch();
+    }
+
+    if (rec.shouldEmitFlag(rip, X86_REF_OF)) {
+        rec.updateOverflowSub(dst, src, result_2, size);
     }
 
     if (rec.shouldEmitFlag(rip, X86_REF_ZF)) {
@@ -1015,12 +1015,12 @@ FAST_HANDLE(ADC) {
         rec.updateAuxiliaryAdc(dst, result, cf, result_2);
     }
 
-    if (rec.shouldEmitFlag(rip, X86_REF_OF)) {
-        rec.updateOverflowAdd(dst, src, result_2, size);
-    }
-
     if (rec.shouldEmitFlag(rip, X86_REF_CF)) {
         rec.updateCarryAdc(dst, result, result_2, size);
+    }
+
+    if (rec.shouldEmitFlag(rip, X86_REF_OF)) {
+        rec.updateOverflowAdd(dst, src, result_2, size);
     }
 
     if (rec.shouldEmitFlag(rip, X86_REF_ZF)) {

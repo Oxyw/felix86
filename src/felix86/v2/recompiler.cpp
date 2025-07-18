@@ -2041,37 +2041,47 @@ bool Recompiler::shouldEmitFlag(u64 rip, x86_ref_e ref) {
     return true;
 }
 
-// (res & (~d | s)) | (~d & s), xor top 2 bits
 void Recompiler::updateOverflowSub(biscuit::GPR lhs, biscuit::GPR rhs, biscuit::GPR result, x86_size_e size_e) {
     int size = getBitSize(size_e);
     biscuit::GPR of = flag(X86_REF_OF);
     biscuit::GPR temp = scratch();
-    as.NOT(temp, lhs);
-    as.OR(of, temp, rhs);
-    as.AND(of, of, result);
-    as.AND(temp, temp, rhs);
-    as.OR(of, of, temp);
-    as.SRLI(temp, of, size - 2);
-    as.SRLI(of, of, size - 1);
-    as.XOR(of, of, temp);
-    as.ANDI(of, of, 1);
+    if (size_e == X86_SIZE_QWORD) {
+        as.SGTZ(of, rhs);
+        as.SLT(temp, result, lhs);
+        as.XOR(of, of, temp);
+    } else {
+        as.NOT(temp, lhs);
+        as.OR(of, temp, rhs);
+        as.AND(of, of, result);
+        as.AND(temp, temp, rhs);
+        as.OR(of, of, temp);
+        as.SRLI(temp, of, size - 2);
+        as.SRLI(of, of, size - 1);
+        as.XOR(of, of, temp);
+        as.ANDI(of, of, 1);
+    }
     popScratch();
 }
 
-// ((s & d) | ((~res) & (s | d))), xor top 2 bits
 void Recompiler::updateOverflowAdd(biscuit::GPR lhs, biscuit::GPR rhs, biscuit::GPR result, x86_size_e size_e) {
     int size = getBitSize(size_e);
     biscuit::GPR of = flag(X86_REF_OF);
     biscuit::GPR temp = scratch();
-    as.OR(of, lhs, rhs);
-    as.NOT(temp, result);
-    as.AND(of, temp, of);
-    as.AND(temp, lhs, rhs);
-    as.OR(of, of, temp);
-    as.SRLI(temp, of, size - 2);
-    as.SRLI(of, of, size - 1);
-    as.XOR(of, of, temp);
-    as.ANDI(of, of, 1);
+    if (size_e == X86_SIZE_QWORD) {
+        as.SLT(of, result, lhs);
+        as.SLTI(temp, rhs, 0);
+        as.XOR(of, of, temp);
+    } else {
+        as.OR(of, lhs, rhs);
+        as.NOT(temp, result);
+        as.AND(of, temp, of);
+        as.AND(temp, lhs, rhs);
+        as.OR(of, of, temp);
+        as.SRLI(temp, of, size - 2);
+        as.SRLI(of, of, size - 1);
+        as.XOR(of, of, temp);
+        as.ANDI(of, of, 1);
+    }
     popScratch();
 }
 

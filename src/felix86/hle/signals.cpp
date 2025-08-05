@@ -456,6 +456,7 @@ bool handle_smc(ThreadState* current_state, siginfo_t* info, ucontext_t* context
         return false;
     }
 
+    SMCLOG("Handling SMC on %lx during PC: %lx", info->si_addr, pc);
     u64 write_address = (u64)info->si_addr & ~0xFFFull;
     Recompiler::invalidateRangeGlobal(write_address, write_address + 0x1000);
     ASSERT_MSG(::mprotect((void*)write_address, 0x1000, PROT_READ | PROT_WRITE) == 0, "mprotect failed on address %lx", write_address);
@@ -496,17 +497,19 @@ bool handle_wild_sigsegv(ThreadState* current_state, siginfo_t* info, ucontext_t
               "this SIGSEGV was intended, disabled this mode by unsetting the `capture_sigsegv` option.",
               !in_jit_code ? ANSI_BOLD " in emulator code" ANSI_COLOR_RESET : "", pid, pid);
 
-        LOG("Current RIP:");
-        if (in_jit_code) {
-            BlockMetadata* current_block = get_block_metadata(current_state, pc);
-            if (current_block) {
-                u64 actual_rip = get_actual_rip(*current_block, pc);
-                print_address(actual_rip);
+        if (g_config.calltrace) {
+            LOG("Current RIP:");
+            if (in_jit_code) {
+                BlockMetadata* current_block = get_block_metadata(current_state, pc);
+                if (current_block) {
+                    u64 actual_rip = get_actual_rip(*current_block, pc);
+                    print_address(actual_rip);
+                } else {
+                    WARN("Failed to get actual RIP"); // <- TODO: get it from REG_GP
+                }
             } else {
-                WARN("Failed to get actual RIP"); // <- TODO: get it from REG_GP
+                print_address(current_state->rip);
             }
-        } else {
-            print_address(current_state->rip);
         }
 
         if (g_config.calltrace) {
@@ -529,17 +532,19 @@ bool handle_wild_sigabrt(ThreadState* current_state, siginfo_t* info, ucontext_t
               "think this SIGABRT was intended, disabled this mode by unsetting the `capture_sigabrt` option.",
               !in_jit_code ? ANSI_BOLD " in emulator code" ANSI_COLOR_RESET : "", pid, pid);
 
-        LOG("Current RIP:");
-        if (in_jit_code) {
-            BlockMetadata* current_block = get_block_metadata(current_state, pc);
-            if (current_block) {
-                u64 actual_rip = get_actual_rip(*current_block, pc);
-                print_address(actual_rip);
+        if (g_config.calltrace) {
+            LOG("Current RIP:");
+            if (in_jit_code) {
+                BlockMetadata* current_block = get_block_metadata(current_state, pc);
+                if (current_block) {
+                    u64 actual_rip = get_actual_rip(*current_block, pc);
+                    print_address(actual_rip);
+                } else {
+                    WARN("Failed to get actual RIP"); // <- TODO: get it from REG_GP
+                }
             } else {
-                WARN("Failed to get actual RIP"); // <- TODO: get it from REG_GP
+                print_address(current_state->rip);
             }
-        } else {
-            print_address(current_state->rip);
         }
 
         if (g_config.calltrace) {

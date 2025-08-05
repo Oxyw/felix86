@@ -7473,6 +7473,10 @@ void SCALAR(Recompiler& rec, u64 rip, Assembler& as, ZydisDecodedInstruction& in
 }
 
 FAST_HANDLE(EMMS) {
+    // Set FPU tag word to empty
+    biscuit::GPR ones = rec.scratch();
+    as.LI(ones, -1);
+    as.SH(ones, offsetof(ThreadState, fpu_tw), rec.threadStatePointer());
     rec.switchToX87();
 }
 
@@ -10019,6 +10023,7 @@ void FCOMI(Recompiler& rec, Assembler& as, ZydisDecodedOperand* operands, bool p
 
     as.Bind(&end);
 
+    rec.resetScratch();
     if (pop) {
         rec.popX87();
     }
@@ -10081,6 +10086,7 @@ void FCOM(Recompiler& rec, Assembler& as, ZydisDecodedOperand* operands, int pop
 
     as.SW(c0, offsetof(ThreadState, fpu_sw), rec.threadStatePointer());
 
+    rec.resetScratch();
     if (pop_count == 1) {
         rec.popX87();
     } else if (pop_count == 2) {

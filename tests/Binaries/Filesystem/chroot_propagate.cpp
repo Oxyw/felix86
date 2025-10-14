@@ -23,7 +23,7 @@ int main() {
     bool is_execve = !!getenv("__BTEST_EXECVE");
     if (is_execve) {
         // We should already be chrooted, make sure the file exists
-        int fd = open("/file1_felix86", O_RDONLY, 0644);
+        int fd = open("/file1_felix86", O_RDONLY, 0600);
         if (fd <= 0) {
             printf("Failed to open /file1_felix86?\n");
             return 1;
@@ -45,12 +45,15 @@ int main() {
 
         std::filesystem::path exec = dir / "executable_felix86";
         std::filesystem::copy(buffer, exec);
+        if (::chmod(exec.c_str(), 0755) != 0) {
+            return 6;
+        }
 
         touch(dir / "file1_felix86");
 
         if (::chroot(cpath) != 0) {
             printf("No perms?\n");
-            return 1;
+            return 2;
         }
 
         chdir("/");
@@ -58,7 +61,7 @@ int main() {
         int fd = open("/file1_felix86", O_RDONLY, 0644);
         if (fd <= 0) {
             printf("Failed to open /file1_felix86?\n");
-            return 1;
+            return 3;
         }
         close(fd);
 
@@ -68,13 +71,14 @@ int main() {
             const char* envp[] = {"__BTEST_EXECVE=1", nullptr};
             int execed = execve("/executable_felix86", (char**)argv, (char**)envp);
             printf("Failed execve\n");
-            return 1;
+            return 4;
         } else {
             int status;
             waitpid(pid, &status, 0);
             int result = WEXITSTATUS(status);
             if (result != FELIX86_BTEST_SUCCESS) {
-                return 1;
+                printf("Bad return value: %d\n", result);
+                return 5;
             }
         }
     }

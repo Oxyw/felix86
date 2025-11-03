@@ -79,7 +79,7 @@ constexpr u32 NO_SUBLEAF = 0xFFFFFFFF;
     (Cpuid){0x80000008, NO_SUBLEAF, 0x00003026, 0x00000000, 0x00000000, 0x00000000},
 };
 
-std::span<const Cpuid> selected_mappings = p4_mappings_sse3;
+std::span<const Cpuid> selected_mappings = nehalem_mappings;
 std::span<const Cpuid> selected_mappings_32 = p4_mappings_sse3;
 
 Cpuid felix86_cpuid_impl(u32 leaf, u32 subleaf) {
@@ -108,8 +108,13 @@ Cpuid felix86_cpuid_impl(u32 leaf, u32 subleaf) {
         if (g_config.no_sse4_1) {
             result.ecx &= ~(1 << 19);
         }
-        if (g_config.no_sse4_2) {
+        if (g_config.no_sse4_2 || !Extensions::B /* CRC32 needs Zbc */) {
             result.ecx &= ~(1 << 20);
+        }
+        if (!Extensions::B) {
+            result.ecx &= ~(1 << 1); // disable PCLMULQDQ
+        } else if (g_config.pclmulqdq) {
+            result.ecx |= 1 << 1;
         }
     }
 

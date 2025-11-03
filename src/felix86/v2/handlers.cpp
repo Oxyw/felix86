@@ -8307,6 +8307,198 @@ FAST_HANDLE(PMADDUBSW) {
     rec.setVec(&operands[0], dst);
 }
 
+FAST_HANDLE(PHADDW) {
+    biscuit::Vec group = rec.scratchVecM2();
+    biscuit::Vec temp = rec.scratchVecM2();
+    biscuit::Vec narrow1 = rec.scratchVec();
+    biscuit::Vec narrow2 = rec.scratchVec();
+    biscuit::Vec dst = rec.getVec(&operands[0]);
+    biscuit::Vec src = rec.getVec(&operands[1]);
+    rec.setVectorState(SEW::E16, 16, LMUL::M2);
+    as.VMV1R(group, dst);
+    if (src.Index() % 2 != 0) {
+        as.VMV1R(temp, src);
+    } else {
+        temp = src;
+    }
+    as.VSLIDEUP(group, temp, operands[0].size / 16);
+    rec.setVectorState(SEW::E16, 8);
+    as.VNSRL(narrow1, group, 0);
+    as.VNSRL(narrow2, group, 16);
+    as.VADD(dst, narrow1, narrow2);
+    rec.setVec(&operands[0], dst);
+}
+
+FAST_HANDLE(PHADDD) {
+    biscuit::Vec group = rec.scratchVecM2();
+    biscuit::Vec temp = rec.scratchVecM2();
+    biscuit::Vec narrow1 = rec.scratchVec();
+    biscuit::Vec narrow2 = rec.scratchVec();
+    biscuit::GPR shift = rec.scratch();
+    biscuit::Vec dst = rec.getVec(&operands[0]);
+    biscuit::Vec src = rec.getVec(&operands[1]);
+    rec.setVectorState(SEW::E32, 8, LMUL::M2);
+    as.VMV1R(group, dst);
+    if (src.Index() % 2 != 0) {
+        as.VMV1R(temp, src);
+    } else {
+        temp = src;
+    }
+    as.VSLIDEUP(group, temp, operands[0].size / 32);
+    rec.setVectorState(SEW::E32, 4);
+    as.LI(shift, 32);
+    as.VNSRL(narrow1, group, 0);
+    as.VNSRL(narrow2, group, shift);
+    as.VADD(dst, narrow1, narrow2);
+    rec.setVec(&operands[0], dst);
+}
+
+FAST_HANDLE(PHADDSW) {
+    biscuit::Vec group = rec.scratchVecM2();
+    biscuit::Vec temp = rec.scratchVecM2();
+    biscuit::Vec narrow1 = rec.scratchVec();
+    biscuit::Vec narrow2 = rec.scratchVec();
+    biscuit::Vec dst = rec.getVec(&operands[0]);
+    biscuit::Vec src = rec.getVec(&operands[1]);
+    rec.setVectorState(SEW::E16, 16, LMUL::M2);
+    as.VMV1R(group, dst);
+    if (src.Index() % 2 != 0) {
+        as.VMV1R(temp, src);
+    } else {
+        temp = src;
+    }
+    as.VSLIDEUP(group, temp, operands[0].size / 16);
+    rec.setVectorState(SEW::E16, 8);
+    as.VNSRL(narrow1, group, 0);
+    as.VNSRL(narrow2, group, 16);
+    as.VSADD(dst, narrow1, narrow2);
+    rec.setVec(&operands[0], dst);
+}
+
+FAST_HANDLE(PHSUBW) {
+    biscuit::Vec group = rec.scratchVecM2();
+    biscuit::Vec temp = rec.scratchVecM2();
+    biscuit::Vec narrow1 = rec.scratchVec();
+    biscuit::Vec narrow2 = rec.scratchVec();
+    biscuit::Vec dst = rec.getVec(&operands[0]);
+    biscuit::Vec src = rec.getVec(&operands[1]);
+    rec.setVectorState(SEW::E16, 16, LMUL::M2);
+    as.VMV1R(group, dst);
+    if (src.Index() % 2 != 0) {
+        as.VMV1R(temp, src);
+    } else {
+        temp = src;
+    }
+    as.VSLIDEUP(group, temp, operands[0].size / 16);
+    rec.setVectorState(SEW::E16, 8);
+    as.VNSRL(narrow1, group, 0);
+    as.VNSRL(narrow2, group, 16);
+    as.VSUB(dst, narrow1, narrow2);
+    rec.setVec(&operands[0], dst);
+}
+
+FAST_HANDLE(PHSUBD) {
+    biscuit::Vec group = rec.scratchVecM2();
+    biscuit::Vec temp = rec.scratchVecM2();
+    biscuit::Vec narrow1 = rec.scratchVec();
+    biscuit::Vec narrow2 = rec.scratchVec();
+    biscuit::GPR shift = rec.scratch();
+    biscuit::Vec dst = rec.getVec(&operands[0]);
+    biscuit::Vec src = rec.getVec(&operands[1]);
+    rec.setVectorState(SEW::E32, 8, LMUL::M2);
+    as.VMV1R(group, dst);
+    if (src.Index() % 2 != 0) {
+        as.VMV1R(temp, src);
+    } else {
+        temp = src;
+    }
+    as.VSLIDEUP(group, temp, operands[0].size / 32);
+    rec.setVectorState(SEW::E32, 4);
+    as.LI(shift, 32);
+    as.VNSRL(narrow1, group, 0);
+    as.VNSRL(narrow2, group, shift);
+    as.VSUB(dst, narrow1, narrow2);
+    rec.setVec(&operands[0], dst);
+}
+
+FAST_HANDLE(PHSUBSW) {
+    biscuit::Vec group = rec.scratchVecM2();
+    biscuit::Vec temp = rec.scratchVecM2();
+    biscuit::Vec narrow1 = rec.scratchVec();
+    biscuit::Vec narrow2 = rec.scratchVec();
+    biscuit::Vec dst = rec.getVec(&operands[0]);
+    biscuit::Vec src = rec.getVec(&operands[1]);
+    rec.setVectorState(SEW::E16, 16, LMUL::M2);
+    as.VMV1R(group, dst);
+    if (src.Index() % 2 != 0) {
+        as.VMV1R(temp, src);
+    } else {
+        temp = src;
+    }
+    as.VSLIDEUP(group, temp, operands[0].size / 16);
+    rec.setVectorState(SEW::E16, 8);
+    as.VNSRL(narrow1, group, 0);
+    as.VNSRL(narrow2, group, 16);
+    as.VSSUB(dst, narrow1, narrow2);
+    rec.setVec(&operands[0], dst);
+}
+
+FAST_HANDLE(PCLMULQDQ) {
+    ASSERT(Extensions::B);
+    biscuit::Vec dst = rec.getVec(&operands[0]);
+    biscuit::Vec src = rec.getVec(&operands[1]);
+    biscuit::Vec temp = rec.scratchVec();
+    biscuit::Vec temp2 = rec.scratchVec();
+    biscuit::GPR X = rec.scratch();
+    biscuit::GPR Y = rec.scratch();
+    biscuit::GPR dst_low = rec.scratch();
+    biscuit::GPR dst_high = rec.scratch();
+    u8 imm = rec.getImmediate(&operands[2]);
+    rec.setVectorState(SEW::E64, 2);
+    if (imm & 1) {
+        as.VSLIDEDOWN(temp, dst, 1);
+        as.VMV_XS(X, temp);
+    } else {
+        as.VMV_XS(X, dst);
+    }
+    if (imm & 0b10000) {
+        as.VSLIDEDOWN(temp, src, 1);
+        as.VMV_XS(Y, temp);
+    } else {
+        as.VMV_XS(Y, src);
+    }
+    as.CLMUL(dst_low, X, Y);
+    as.CLMULH(dst_high, X, Y);
+    as.VMV_SX(temp, dst_high);
+    as.VSLIDE1UP(temp2, temp, dst_low);
+    rec.setVec(&operands[0], temp2);
+}
+
+FAST_HANDLE(CRC32) {
+    ASSERT(Extensions::B);
+    // Read: https://mails.dpdk.org/archives/dev/2024-August/299978.html
+    constexpr u64 p = 0x105EC76F1;
+    constexpr u64 mu = 0x4869EC38DEA713F1ul;
+    biscuit::GPR initial = rec.getGPR(&operands[0], X86_SIZE_DWORD);
+    biscuit::GPR data = rec.getGPR(&operands[1]);
+    biscuit::GPR crc = rec.scratch();
+    biscuit::GPR temp = rec.scratch();
+    biscuit::GPR rmu = rec.scratch();
+    biscuit::GPR rp = rec.scratch();
+    u8 bits = operands[1].size;
+    as.LI(rmu, mu);
+    as.LI(rp, p);
+    as.XOR(temp, data, initial);
+    as.SLLI(crc, temp, 64 - bits);
+    as.CLMUL(crc, crc, rmu);
+    as.CLMULH(crc, crc, rp);
+    if (bits == 16 || bits == 8) {
+        as.SRLI(temp, initial, bits);
+        as.XOR(crc, crc, temp);
+    }
+    rec.setGPR(&operands[0], crc);
+}
+
 FAST_HANDLE(FXSAVE) {
     biscuit::GPR address = rec.lea(&operands[0]);
     rec.writebackState();
